@@ -1,0 +1,27 @@
+# mcpygen
+
+> MCP tooling infrastructure
+
+mcpygen generates typed Python APIs from MCP server tool schemas. Tool calls made through
+the generated APIs are executed on a local tool server that manages stdio MCP servers and
+connects to remote streamable HTTP or SSE servers, with optional approval workflows via
+WebSocket-based approval channels.
+
+
+## User Guide
+
+- [Overview](https://gradion-ai.github.io/mcpygen/index.md): Project overview and capabilities
+- [Installation](https://gradion-ai.github.io/mcpygen/installation/index.md): Installation and setup instructions
+- [Quickstart](https://gradion-ai.github.io/mcpygen/quickstart/index.md): Getting started guide
+- [API generation](https://gradion-ai.github.io/mcpygen/apigen/index.md): Generating typed Python APIs from MCP server schemas
+- [Tool server](https://gradion-ai.github.io/mcpygen/toolserver/index.md): ToolServer
+- [Approval](https://gradion-ai.github.io/mcpygen/approval/index.md): Approval workflow
+- [CLI](https://gradion-ai.github.io/mcpygen/cli/index.md): CLI reference
+
+## API Reference
+
+- [API generation](https://gradion-ai.github.io/mcpygen/api/apigen/index.md): API generation
+- [ToolServer](https://gradion-ai.github.io/mcpygen/api/toolserver/index.md): ToolServer
+- [ToolRunner](https://gradion-ai.github.io/mcpygen/api/toolrunner/index.md): ToolRunner
+- [Approval](https://gradion-ai.github.io/mcpygen/api/approval/index.md): Approval workflow
+

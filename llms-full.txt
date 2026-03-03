@@ -1,0 +1,694 @@
+# mcpygen
+
+> MCP tooling infrastructure
+
+mcpygen generates typed Python APIs from MCP server tool schemas. Tool calls made through
+the generated APIs are executed on a local tool server that manages stdio MCP servers and
+connects to remote streamable HTTP or SSE servers, with optional approval workflows via
+WebSocket-based approval channels.
+
+
+# User Guide
+
+# mcpygen
+
+mcpygen generates typed Python APIs from MCP server tool schemas. Tool calls made through the generated APIs are executed on a local tool server that manages MCP server connections.
+
+## Features
+
+- **API generation**: Generate typed Python tool APIs from MCP server schemas. Each tool becomes a module with a Pydantic `Params` model and a `run()` function. Tools that provide an output schema also get a typed `Result` model.
+- **Tool server**: Local server that manages stdio MCP servers and connects to remote streamable HTTP or SSE servers
+- **Approval workflow**: Gate tool calls with a WebSocket-based approval channel before execution
+
+# Installation
+
+## From source
+
+```
+git clone https://github.com/gradion-ai/mcpygen.git
+cd mcpygen
+uv sync
+```
+
+## As a dependency
+
+Add mcpygen to your project:
+
+```
+uv add mcpygen
+```
+
+# Quickstart
+
+## How it works
+
+mcpygen has three parts:
+
+1. **Generate**: connect to an MCP server, discover its tools, and produce a typed Python package with `Params` models and `run()` functions.
+1. **Serve**: a local tool server manages stdio MCP server processes and proxies remote HTTP/SSE MCP servers.
+1. **Call**: generated `run()` functions send requests to the tool server, which delegates to the actual MCP server and returns results.
+
+The tool server creates and connects to MCP servers on demand and keeps them running for subsequent calls.
+
+## Generate a typed tool API
+
+```
+from pathlib import Path
+
+from mcpygen import generate_mcp_sources
+
+server_params = {
+    "command": "uvx",
+    "args": ["mcp-server-fetch"],
+}
+
+await generate_mcp_sources("fetch_mcp", server_params, Path("mcptools"))
+```
+
+This generates a Python package under `mcptools/fetch_mcp/` with one module per tool, each containing a `Params` class and a `run()` function.
+
+## Start a tool server
+
+A running [tool server](https://gradion-ai.github.io/mcpygen/toolserver/index.md) is required before calling the generated tool APIs.
+
+```
+from mcpygen import ToolServer
+
+async with ToolServer() as server:
+    await server.join()
+```
+
+Or from the command line:
+
+```
+mcpygen toolserver
+```
+
+## Use the generated API
+
+With a tool server running, call the generated `run()` function:
+
+```
+from mcptools.fetch_mcp.fetch import Params, run
+
+result = run(Params(url="https://example.com"))
+```
+
+## Custom tool server port
+
+By default, the tool server listens on port 8900. To use a different port:
+
+```
+mcpygen toolserver --port 9000
+```
+
+Set the `TOOL_SERVER_PORT` environment variable so the generated APIs connect to the same port:
+
+```
+export TOOL_SERVER_PORT=9000
+```
+
+# Python tool API generation
+
+generate_mcp_sources() generates a typed Python tool API from MCP server tool schemas. Each tool becomes a module with a Pydantic `Params` class, a `run()` function, and either a typed `Result` class or a `str` return type. A `Result` class is generated when the tool schema defines an output schema; otherwise `run()` returns `str`.
+
+## Stdio servers
+
+For MCP servers that run as local processes, specify `command`, `args`, and optional `env`:
+
+```
+from pathlib import Path
+
+from mcpygen import generate_mcp_sources
+
+server_params = {
+    "command": "npx",
+    "args": ["-y", "@brave/brave-search-mcp-server"],
+    "env": {"BRAVE_API_KEY": "${BRAVE_API_KEY}"},
+}
+
+await generate_mcp_sources("brave_search", server_params, Path("mcptools"))
+```
+
+## Remote servers
+
+For remote MCP servers, specify `url` and optional `headers`:
+
+```
+server_params = {
+    "url": "https://api.githubcopilot.com/mcp/",
+    "headers": {"Authorization": "Bearer ${GITHUB_TOKEN}"},
+}
+
+await generate_mcp_sources("github", server_params, Path("mcptools"))
+```
+
+mcpygen auto-detects the transport type from the URL. URLs containing `/mcp` use streamable HTTP, URLs containing `/sse` use SSE. To override, set `type` to `"streamable_http"` or `"sse"`.
+
+## Environment variable substitution
+
+`${VAR_NAME}` placeholders in `server_params` values are replaced with the corresponding environment variable on the tool server.
+
+## Generated package structure
+
+The Brave Search MCP server example above generates a package structure like this:
+
+```
+mcptools/
+└── brave_search/
+    ├── __init__.py
+    ├── brave_web_search.py
+    ├── brave_local_search.py
+    ├── brave_image_search.py
+    └── ...
+```
+
+Each MCP server tool gets its own Python module. For example, the [fetch MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) produces the following tool module (slightly modified for readability, [source](https://github.com/gradion-ai/mcpygen/blob/main/docs/generated/mcptools/fetch_mcp/fetch.py)):
+
+```
+from typing import Optional
+
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, conint
+
+from . import CLIENT
+
+
+class Params(BaseModel):
+    model_config = ConfigDict(
+        use_enum_values=True,
+    )
+    url: AnyUrl = Field(..., title="Url")
+    """
+    URL to fetch
+    """
+    max_length: Optional[conint(lt=1000000, gt=0)] = Field(5000, title="Max Length")
+    """
+    Maximum number of characters to return.
+    """
+    start_index: Optional[conint(ge=0)] = Field(0, title="Start Index")
+    """
+    On return output starting at this character index.
+    """
+    raw: Optional[bool] = Field(False, title="Raw")
+    """
+    Get the actual HTML content of the requested page, without simplification.
+    """
+
+
+def run(params: Params) -> str:
+    """Fetches a URL from the internet and extracts its contents as markdown."""
+    return CLIENT.run_sync(tool_name="fetch", tool_args=params.model_dump(exclude_none=True))
+```
+
+The generated package [__init__.py](https://github.com/gradion-ai/mcpygen/blob/main/docs/generated/mcptools/fetch_mcp/__init__.py) configures a ToolRunner that connects to a [tool server](https://gradion-ai.github.io/mcpygen/toolserver/index.md).
+
+## Using the generated API
+
+```
+from mcptools.brave_search.brave_image_search import Params, Result, run
+
+# Params validates input
+params = Params(query="neural topic models", count=3)
+
+# run() calls the MCP tool and returns a Result (or str for untyped tools)
+result: Result = run(params)
+
+for image in result.items:
+    print(image.title)
+```
+
+A running [tool server](https://gradion-ai.github.io/mcpygen/toolserver/index.md) is required for executing tool calls.
+
+## Tool server connection
+
+The generated API connects to a tool server at `localhost:8900` by default. Override the host and port with environment variables:
+
+| Variable           | Default     | Description          |
+| ------------------ | ----------- | -------------------- |
+| `TOOL_SERVER_HOST` | `localhost` | Tool server hostname |
+| `TOOL_SERVER_PORT` | `8900`      | Tool server port     |
+
+# Tool server
+
+ToolServer is a local server that manages stdio MCP servers and connects to remote streamable HTTP or SSE servers. MCP servers are started on demand and cached for subsequent calls. The generated [tool APIs](https://gradion-ai.github.io/mcpygen/apigen/index.md) delegate tool calls to the tool server for execution.
+
+```
+from mcpygen import ToolServer
+
+async with ToolServer(port=8900) as server:
+    await server.join()
+```
+
+## ToolRunner
+
+The generated tool APIs use ToolRunner internally to communicate with the tool server. `ToolRunner` sends HTTP requests to the tool server, which executes the MCP tool and returns the result.
+
+```
+from mcpygen import ToolRunner
+
+runner = ToolRunner(
+    server_name="brave_search",
+    server_params={
+        "command": "npx",
+        "args": ["-y", "@brave/brave-search-mcp-server"],
+        "env": {"BRAVE_API_KEY": "${BRAVE_API_KEY}"},
+    },
+)
+
+result = runner.run_sync(
+    tool_name="brave_web_search",
+    tool_args={"query": "MCP"},
+)
+```
+
+# Approval workflow
+
+When `approval_required=True`, each tool call on the [tool server](https://gradion-ai.github.io/mcpygen/toolserver/index.md) requires approval via WebSocket before execution.
+
+```
+from mcpygen import ApprovalClient, ApprovalRequest, ToolServer
+
+async def on_approval(request: ApprovalRequest):
+    print(f"Tool call: {request}")
+    await request.accept()  # or request.reject()
+
+async with ToolServer(approval_required=True) as server:
+    async with ApprovalClient(callback=on_approval):
+        # Tool calls now require approval
+        ...
+```
+
+## Typed approval errors
+
+Generated tool APIs raise specific error types for approval failures:
+
+- ApprovalRejectedError: The tool call was rejected
+- ApprovalTimeoutError: The approval request timed out
+
+Both inherit from ToolRunnerError.
+
+# CLI Reference
+
+mcpygen provides a command-line interface with two subcommands.
+
+## `mcpygen apigen`
+
+Generate typed Python tool APIs from MCP server schemas.
+
+```
+mcpygen apigen \
+    --server-name fetch_mcp \
+    --server-params '{"command": "uvx", "args": ["mcp-server-fetch"]}' \
+    --root-dir mcptools
+```
+
+**Arguments:**
+
+| Argument          | Description                                        |
+| ----------------- | -------------------------------------------------- |
+| `--server-name`   | Name for the generated package directory           |
+| `--server-params` | MCP server connection parameters (JSON string)     |
+| `--root-dir`      | Parent directory where the package will be created |
+
+## `mcpygen toolserver`
+
+Run a standalone tool server instance.
+
+```
+mcpygen toolserver --host localhost --port 8900 --log-level INFO
+```
+
+**Arguments:**
+
+| Argument      | Default     | Description         |
+| ------------- | ----------- | ------------------- |
+| `--host`      | `localhost` | Hostname to bind to |
+| `--port`      | `8900`      | Port to listen on   |
+| `--log-level` | `INFO`      | Logging level       |
+# API Reference
+
+## mcpygen.apigen.generate_mcp_sources
+
+```
+generate_mcp_sources(
+    server_name: str,
+    server_params: dict[str, Any],
+    root_dir: Path,
+) -> list[str]
+```
+
+Generate a typed Python tool API for an MCP server.
+
+Connects to an MCP server, discovers available tools, and generates a Python package with typed functions backed by Pydantic models. Each tool becomes a module with a `Params` class for input validation and a `run()` function to invoke the tool.
+
+When calling the generated API, the corresponding tools are executed on a ToolServer.
+
+If a directory for the server already exists under `root_dir`, it is removed and recreated.
+
+Parameters:
+
+| Name            | Type             | Description                                                                                                                                           | Default    |
+| --------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `server_name`   | `str`            | Name for the generated package directory. Also used to identify the server in the generated client code.                                              | *required* |
+| `server_params` | `dict[str, Any]` | MCP server connection parameters. For stdio servers, provide command, args, and optionally env. For HTTP servers, provide url and optionally headers. | *required* |
+| `root_dir`      | `Path`           | Parent directory where the package will be created. The generated package is written to root_dir/server_name/.                                        | *required* |
+
+Returns:
+
+| Type        | Description                                                               |
+| ----------- | ------------------------------------------------------------------------- |
+| `list[str]` | List of sanitized tool names corresponding to the generated module files. |
+
+Example
+
+Generate a Python tool API for the fetch MCP server:
+
+```
+server_params = {
+    "command": "uvx",
+    "args": ["mcp-server-fetch"],
+}
+await generate_mcp_sources("fetch_mcp", server_params, Path("mcptools"))
+```
+
+## mcpygen.tool_exec.server.ToolServer
+
+```
+ToolServer(
+    host="localhost",
+    port: int = 8900,
+    approval_required: bool = False,
+    approval_timeout: float | None = None,
+    connect_timeout: float = 30,
+    log_to_stderr: bool = False,
+    log_level: str = "INFO",
+)
+```
+
+HTTP server that manages MCP servers and executes their tools with optional approval.
+
+ToolServer provides HTTP endpoints for executing MCP tools and a WebSocket endpoint for sending approval requests to clients. MCP servers are started on demand when tools are first executed and cached for subsequent calls.
+
+Endpoints:
+
+- `PUT /reset`: Closes all started MCP servers
+- `POST /run`: Executes an MCP tool (with optional approval)
+- `WS /approval`: WebSocket endpoint for ApprovalClient connections
+
+Example
+
+```
+async with ToolServer(approval_required=True) as server:
+    async with ApprovalClient(callback=on_approval_request):
+        # Execute code that calls MCP tools
+        ...
+```
+
+Parameters:
+
+| Name                | Type    | Description                                            | Default                                                                   |
+| ------------------- | ------- | ------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `host`              |         | Hostname the server binds to.                          | `'localhost'`                                                             |
+| `port`              | `int`   | Port number the server listens on.                     | `8900`                                                                    |
+| `approval_required` | `bool`  | Whether tool calls require approval.                   | `False`                                                                   |
+| `approval_timeout`  | \`float | None\`                                                 | Timeout in seconds for approval requests. If None, no timeout is applied. |
+| `connect_timeout`   | `float` | Timeout in seconds for starting MCP servers.           | `30`                                                                      |
+| `log_to_stderr`     | `bool`  | Whether to log to stderr instead of stdout.            | `False`                                                                   |
+| `log_level`         | `str`   | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). | `'INFO'`                                                                  |
+
+### join
+
+```
+join()
+```
+
+Wait for the HTTP server task to stop.
+
+### start
+
+```
+start()
+```
+
+Start the HTTP server.
+
+Raises:
+
+| Type           | Description                       |
+| -------------- | --------------------------------- |
+| `RuntimeError` | If the server is already running. |
+
+### stop
+
+```
+stop()
+```
+
+Stop the HTTP server and close all managed MCP servers.
+
+## mcpygen.tool_exec.client.ToolRunner
+
+```
+ToolRunner(
+    server_name: str,
+    server_params: dict[str, Any],
+    host: str = "localhost",
+    port: int = 8900,
+)
+```
+
+Client for executing MCP tools on a ToolServer.
+
+Example
+
+```
+runner = ToolRunner(
+    server_name="fetch",
+    server_params={"command": "uvx", "args": ["mcp-server-fetch"]},
+)
+result = await runner.run("fetch", {"url": "https://example.com"})
+```
+
+Parameters:
+
+| Name            | Type             | Description                    | Default       |
+| --------------- | ---------------- | ------------------------------ | ------------- |
+| `server_name`   | `str`            | Name of the MCP server.        | *required*    |
+| `server_params` | `dict[str, Any]` | MCP server parameters.         | *required*    |
+| `host`          | `str`            | Hostname of the ToolServer.    | `'localhost'` |
+| `port`          | `int`            | Port number of the ToolServer. | `8900`        |
+
+### reset
+
+```
+reset()
+```
+
+Reset the `ToolServer`, stopping all started MCP servers.
+
+### run
+
+```
+run(
+    tool_name: str, tool_args: dict[str, Any]
+) -> dict[str, Any] | str | None
+```
+
+Execute a tool on the configured MCP server.
+
+Parameters:
+
+| Name        | Type             | Description                    | Default    |
+| ----------- | ---------------- | ------------------------------ | ---------- |
+| `tool_name` | `str`            | Name of the tool to execute.   | *required* |
+| `tool_args` | `dict[str, Any]` | Arguments to pass to the tool. | *required* |
+
+Returns:
+
+| Type             | Description |
+| ---------------- | ----------- |
+| \`dict[str, Any] | str         |
+
+Raises:
+
+| Type                    | Description                                            |
+| ----------------------- | ------------------------------------------------------ |
+| `ApprovalRejectedError` | If the tool call is rejected by the approval workflow. |
+| `ApprovalTimeoutError`  | If the approval request times out.                     |
+| `ToolRunnerError`       | If tool execution fails.                               |
+
+### run_sync
+
+```
+run_sync(
+    tool_name: str, tool_args: dict[str, Any]
+) -> dict[str, Any] | str | None
+```
+
+Synchronous version of run.
+
+Parameters:
+
+| Name        | Type             | Description                    | Default    |
+| ----------- | ---------------- | ------------------------------ | ---------- |
+| `tool_name` | `str`            | Name of the tool to execute.   | *required* |
+| `tool_args` | `dict[str, Any]` | Arguments to pass to the tool. | *required* |
+
+Returns:
+
+| Type             | Description |
+| ---------------- | ----------- |
+| \`dict[str, Any] | str         |
+
+Raises:
+
+| Type                    | Description                                            |
+| ----------------------- | ------------------------------------------------------ |
+| `ApprovalRejectedError` | If the tool call is rejected by the approval workflow. |
+| `ApprovalTimeoutError`  | If the approval request times out.                     |
+| `ToolRunnerError`       | If tool execution fails.                               |
+
+## mcpygen.tool_exec.approval.client.ApprovalClient
+
+```
+ApprovalClient(
+    callback: ApprovalCallback,
+    host: str = "localhost",
+    port: int = 8900,
+)
+```
+
+Client for handling tool call approval requests.
+
+`ApprovalClient` connects to a ToolServer's approval channel and receives approval requests. Each request is passed to the registered callback, which must accept or reject the request.
+
+Example
+
+```
+async def on_approval_request(request: ApprovalRequest):
+    print(f"Approval request: {request}")
+    await request.accept()
+
+async with ApprovalClient(callback=on_approval_request):
+    # Execute code that triggers MCP tool calls
+    ...
+```
+
+Parameters:
+
+| Name       | Type               | Description                                      | Default       |
+| ---------- | ------------------ | ------------------------------------------------ | ------------- |
+| `callback` | `ApprovalCallback` | Async function called for each approval request. | *required*    |
+| `host`     | `str`              | Hostname of the ToolServer.                      | `'localhost'` |
+| `port`     | `int`              | Port number of the ToolServer.                   | `8900`        |
+
+### connect
+
+```
+connect()
+```
+
+Connect to a `ToolServer`'s `ApprovalChannel`.
+
+### disconnect
+
+```
+disconnect()
+```
+
+Disconnect from the `ToolServer`'s `ApprovalChannel`.
+
+## mcpygen.tool_exec.approval.client.ApprovalRequest
+
+```
+ApprovalRequest(
+    server_name: str,
+    tool_name: str,
+    tool_args: dict[str, Any],
+    respond: Callable[[bool], Awaitable[None]],
+)
+```
+
+An MCP tool call approval request.
+
+`ApprovalRequest` instances are passed to the approval callback registered with ApprovalClient. The callback must call accept or reject for making an approval decision. Consumers can await response to observe the decision.
+
+Example
+
+```
+async def on_approval_request(request: ApprovalRequest):
+    print(f"Approval request: {request}")
+    if request.tool_name == "dangerous_tool":
+        await request.reject()
+    else:
+        await request.accept()
+```
+
+Parameters:
+
+| Name          | Type                                | Description                                | Default    |
+| ------------- | ----------------------------------- | ------------------------------------------ | ---------- |
+| `server_name` | `str`                               | Name of the MCP server providing the tool. | *required* |
+| `tool_name`   | `str`                               | Name of the tool to execute.               | *required* |
+| `tool_args`   | `dict[str, Any]`                    | Arguments to pass to the tool.             | *required* |
+| `respond`     | `Callable[[bool], Awaitable[None]]` | Function to make an approval decision.     | *required* |
+
+### server_name
+
+```
+server_name = server_name
+```
+
+### tool_name
+
+```
+tool_name = tool_name
+```
+
+### tool_args
+
+```
+tool_args = tool_args
+```
+
+### accept
+
+```
+accept()
+```
+
+Accept the approval request.
+
+### reject
+
+```
+reject()
+```
+
+Reject the approval request.
+
+### response
+
+```
+response() -> bool
+```
+
+Wait for and return the approval decision.
+
+## mcpygen.tool_exec.client.ToolRunnerError
+
+Bases: `Exception`
+
+Raised when tool execution fails on the server.
+
+## mcpygen.tool_exec.client.ApprovalRejectedError
+
+Bases: `ToolRunnerError`
+
+Raised when a tool call is rejected by the approval workflow.
+
+## mcpygen.tool_exec.client.ApprovalTimeoutError
+
+Bases: `ToolRunnerError`
+
+Raised when an approval request times out.
