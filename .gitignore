@@ -7,5 +7,6 @@ __pycache__
 .venv/
 .env
 .claude/worktrees/
+/mcptools/
 /sandbox.*
 /site/

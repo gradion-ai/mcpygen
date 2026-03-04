@@ -91,7 +91,7 @@ extra_css:
   - stylesheets/extra.css
 
 nav:
-  - User Guide:
+  - Documentation:
     - Overview: index.md
     - Installation: installation.md
     - Quickstart: quickstart.md
