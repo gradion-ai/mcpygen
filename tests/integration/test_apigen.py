@@ -14,11 +14,11 @@ from tests.integration.mcp_server import STDIO_SERVER_PATH
 
 TOOL_SERVER_PORT = 8920
 MCP_SERVER_NAME = "test_mcp"
+ASYNC_MCP_SERVER_NAME = "test_mcp_async"
 
 
-@pytest_asyncio.fixture(scope="module")
-async def generated_package():
-    """Generate a Python tool API to a temp directory."""
+async def _generate_package(server_name: str, async_api: bool = False):
+    """Generate a Python tool API to a temp directory and yield package info."""
     server_params = {
         "command": "python",
         "args": [str(STDIO_SERVER_PATH)],
@@ -27,28 +27,32 @@ async def generated_package():
     with tempfile.TemporaryDirectory() as tmp_dir:
         root_dir = Path(tmp_dir)
 
-        # Generate sources
         tool_names = await generate_mcp_sources(
-            server_name=MCP_SERVER_NAME,
+            server_name=server_name,
             server_params=server_params,
             root_dir=root_dir,
+            async_api=async_api,
         )
 
-        # Add temp dir to sys.path for imports
         sys.path.insert(0, str(root_dir))
 
         yield {
             "root_dir": root_dir,
-            "package_dir": root_dir / MCP_SERVER_NAME,
+            "package_dir": root_dir / server_name,
             "tool_names": tool_names,
             "server_params": server_params,
         }
 
-        # Cleanup sys.path and modules
         sys.path.remove(str(root_dir))
-        modules_to_remove = [k for k in sys.modules if k.startswith(MCP_SERVER_NAME)]
+        modules_to_remove = [k for k in sys.modules if k.startswith(server_name)]
         for mod in modules_to_remove:
             del sys.modules[mod]
+
+
+@pytest_asyncio.fixture(scope="module")
+async def generated_package():
+    async for value in _generate_package(MCP_SERVER_NAME):
+        yield value
 
 
 @pytest_asyncio.fixture
@@ -148,3 +152,36 @@ class TestGenerateMcpSources:
         assert result[0] == "You passed to tool 1: first"
         assert result[1] == "You passed to tool 2: second"
         assert result[2] == "You passed to tool 1: third"
+
+
+@pytest_asyncio.fixture(scope="module")
+async def generated_async_package():
+    async for value in _generate_package(ASYNC_MCP_SERVER_NAME, async_api=True):
+        yield value
+
+
+class TestAsyncGeneratedApi:
+    """Tests for async generated API."""
+
+    @pytest.mark.asyncio
+    async def test_async_tool_with_unstructured_output(self, generated_async_package: dict, tool_server: ToolServer):
+        os.environ["TOOL_SERVER_PORT"] = str(TOOL_SERVER_PORT)
+
+        tool_2 = importlib.import_module(f"{ASYNC_MCP_SERVER_NAME}.tool_2")
+
+        result = await tool_2.run(tool_2.Params(s="hello"))
+        assert result == "You passed to tool 2: hello"
+
+    @pytest.mark.asyncio
+    async def test_async_tool_with_structured_output(self, generated_async_package: dict, tool_server: ToolServer):
+        os.environ["TOOL_SERVER_PORT"] = str(TOOL_SERVER_PORT)
+
+        tool_3 = importlib.import_module(f"{ASYNC_MCP_SERVER_NAME}.tool_3")
+
+        result = await tool_3.run(tool_3.Params(name="test", level=2))
+
+        assert hasattr(result, "status")
+        assert result.status == "completed_test"
+        assert result.count == 4
+        assert result.inner.code == 200
+        assert result.inner.details == "Processing test at level 2"

@@ -122,6 +122,24 @@ class TestGenerateFunctionDefinition:
         tree = _assert_valid_python(code)
         assert _count_import_nodes(tree) == 1
 
+    def test_async_unstructured(self):
+        code = generate_function_definition("t", "d", structured_output=False, async_api=True)
+        _assert_valid_python(code)
+        assert "async def run" in code
+        assert "await CLIENT.run(" in code
+
+    def test_async_structured(self):
+        code = generate_function_definition("t", "d", structured_output=True, async_api=True)
+        _assert_valid_python(code)
+        assert "async def run" in code
+        assert "-> Result" in code
+        assert "await CLIENT.run(" in code
+
+    def test_async_false_unchanged(self):
+        default = generate_function_definition("t", "d", structured_output=False)
+        explicit = generate_function_definition("t", "d", structured_output=False, async_api=False)
+        assert default == explicit
+
 
 class TestGenerateInitDefinition:
     """Tests for generate_init_definition -- injection safety."""

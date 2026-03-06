@@ -16,6 +16,9 @@ def main():
     apigen_parser.add_argument("--server-name", required=True, help="Name for the generated package directory")
     apigen_parser.add_argument("--server-params", required=True, help="MCP server connection parameters as JSON string")
     apigen_parser.add_argument("--root-dir", required=True, help="Parent directory where the package will be created")
+    apigen_parser.add_argument(
+        "--async", dest="async_api", action="store_true", help="Generate async API (async def run with await)"
+    )
 
     # toolserver subcommand
     toolserver_parser = subparsers.add_parser("toolserver", help="Run a standalone ToolServer instance")
@@ -41,6 +44,7 @@ def _run_apigen(args: argparse.Namespace):
             server_name=args.server_name,
             server_params=server_params,
             root_dir=root_dir,
+            async_api=args.async_api,
         )
     )
 

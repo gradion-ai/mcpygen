@@ -41,24 +41,29 @@ def _safe_docstring(description: str) -> str:
     return f'"""{indented}\n    """'
 
 
-def generate_function_definition(original_name: str, description: str, structured_output: bool) -> str:
+def generate_function_definition(
+    original_name: str, description: str, structured_output: bool, async_api: bool = False
+) -> str:
     name = json.dumps(original_name)
     desc = _safe_docstring(description)
+    def_kw = "async def" if async_api else "def"
+    call = f"await CLIENT.run(tool_name={name}" if async_api else f"CLIENT.run_sync(tool_name={name}"
+    args = ", tool_args=params.model_dump(exclude_none=True))"
     if structured_output:
         return f"""\
 from . import CLIENT
 
-def run(params: Params) -> Result:
+{def_kw} run(params: Params) -> Result:
     {desc}
-    result = CLIENT.run_sync(tool_name={name}, tool_args=params.model_dump(exclude_none=True))
+    result = {call}{args}
     return Result.model_validate(result)
 """
     return f"""\
 from . import CLIENT
 
-def run(params: Params) -> str:
+{def_kw} run(params: Params) -> str:
     {desc}
-    return CLIENT.run_sync(tool_name={name}, tool_args=params.model_dump(exclude_none=True))
+    return {call}{args}
 """
 
 
@@ -94,7 +99,9 @@ def _generate_model_code(schema: dict[str, Any], class_name: str) -> str:
     return parser.parse()
 
 
-async def generate_mcp_sources(server_name: str, server_params: dict[str, Any], root_dir: Path) -> list[str]:
+async def generate_mcp_sources(
+    server_name: str, server_params: dict[str, Any], root_dir: Path, async_api: bool = False
+) -> list[str]:
     """Generate a typed Python tool API for an MCP server.
 
     Connects to an MCP server, discovers available tools, and generates a Python
@@ -116,6 +123,8 @@ async def generate_mcp_sources(server_name: str, server_params: dict[str, Any], 
             provide `url` and optionally `headers`.
         root_dir: Parent directory where the package will be created. The
             generated package is written to `root_dir/server_name/`.
+        async_api: When `True`, generate async `run()` functions that use
+            `await CLIENT.run(...)` instead of sync `CLIENT.run_sync(...)`.
 
     Returns:
         List of sanitized tool names corresponding to the generated module files.
@@ -159,6 +168,7 @@ async def generate_mcp_sources(server_name: str, server_params: dict[str, Any], 
                 original_name=original_name,
                 description=tool.description or "",
                 structured_output=output_schema is not None,
+                async_api=async_api,
             )
 
             # Write file with models and function
