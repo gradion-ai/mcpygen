@@ -54,6 +54,14 @@ from mcptools.fetch_mcp.fetch import Params, run
 result = run(Params(url="https://example.com"))
 ```
 
+For async usage, pass `async_api=True` when generating and `await` the result:
+
+```python
+result = await run(Params(url="https://example.com"))
+```
+
+See [Async API](apigen.md#async-api) for details.
+
 ## Custom tool server port
 
 By default, the tool server listens on port 8900. To use a different port:
