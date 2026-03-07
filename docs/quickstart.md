@@ -25,7 +25,7 @@ server_params = {
 await generate_mcp_sources("fetch_mcp", server_params, Path("mcptools"))
 ```
 
-This generates a Python package under `mcptools/fetch_mcp/` with one module per tool, each containing a `Params` class and a `run()` function. Pass `async_api=True` to generate async functions instead (see [Async API](apigen.md#async-api)).
+This generates a Python package under `mcptools/fetch_mcp/` with one module per tool, each containing a `Params` class and a `run()` function. Pass `async_api=True` to generate async functions instead (see [Async API generation](apigen.md#async-api-generation)).
 
 ## Start a tool server
 
@@ -60,7 +60,7 @@ For async usage, pass `async_api=True` when generating and `await` the result:
 result = await run(Params(url="https://example.com"))
 ```
 
-See [Async API](apigen.md#async-api) for details.
+See [Async API generation](apigen.md#async-api-generation) for details.
 
 ## Custom tool server port
 
