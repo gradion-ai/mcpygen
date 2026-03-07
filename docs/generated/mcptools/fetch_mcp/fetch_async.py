@@ -27,6 +27,8 @@ class Params(BaseModel):
     """
 
 
+# --8<-- [start:run]
 async def run(params: Params) -> str:
     """Fetches a URL from the internet and extracts its contents as markdown."""
     return await CLIENT.run(tool_name="fetch", tool_args=params.model_dump(exclude_none=True))
+# --8<-- [end:run]

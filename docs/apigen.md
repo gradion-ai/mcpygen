@@ -78,18 +78,20 @@ for image in result.items:
 
 A running [tool server](toolserver.md) is required for executing tool calls.
 
-## Async API
+## Async API generation
 
 By default, `generate_mcp_sources()` generates synchronous `run()` functions that use `ToolRunner.run_sync()`. Pass `async_api=True` to generate async functions instead:
 
 ```python
-await generate_mcp_sources("fetch_mcp", server_params, Path("mcptools"), async_api=True)
+await generate_mcp_sources(
+    "fetch_mcp", server_params, Path("mcptools"), async_api=True
+)
 ```
 
 This produces `async def run()` functions that use `await ToolRunner.run()` ([source](https://github.com/gradion-ai/mcpygen/blob/main/docs/generated/mcptools/fetch_mcp/fetch_async.py)):
 
 ```python
---8<-- "docs/generated/mcptools/fetch_mcp/fetch_async.py:30:33"
+--8<-- "docs/generated/mcptools/fetch_mcp/fetch_async.py:run"
 ```
 
 Use the async API with `await`:
@@ -98,16 +100,6 @@ Use the async API with `await`:
 from mcptools.fetch_mcp.fetch import Params, run
 
 result = await run(Params(url="https://example.com"))
-```
-
-The CLI equivalent is the `--async` flag:
-
-```bash
-mcpygen apigen \
-    --server-name fetch_mcp \
-    --server-params '{"command": "uvx", "args": ["mcp-server-fetch"]}' \
-    --root-dir mcptools \
-    --async
 ```
 
 ## Tool server connection
