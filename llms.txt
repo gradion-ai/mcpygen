@@ -2,10 +2,10 @@
 
 > MCP tooling infrastructure
 
-mcpygen generates typed Python APIs from MCP server tool schemas. Tool calls made through
-the generated APIs are executed on a local tool server that manages stdio MCP servers and
-connects to remote streamable HTTP or SSE servers, with optional approval workflows via
-WebSocket-based approval channels.
+mcpygen generates typed Python APIs from MCP server tool schemas, supporting both sync and
+async APIs. Tool calls made through the generated APIs are executed on a local tool server
+that manages stdio MCP servers and connects to remote streamable HTTP or SSE servers, with
+optional approval workflows via WebSocket-based approval channels.
 
 
 ## User Guide

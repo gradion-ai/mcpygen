@@ -25,7 +25,14 @@ runner = ToolRunner(
     },
 )
 
+# Synchronous (used by default generated API)
 result = runner.run_sync(
+    tool_name="brave_web_search",
+    tool_args={"query": "MCP"},
+)
+
+# Async (used by generated API with async_api=True)
+result = await runner.run(
     tool_name="brave_web_search",
     tool_args={"query": "MCP"},
 )

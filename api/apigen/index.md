@@ -5,6 +5,7 @@ generate_mcp_sources(
     server_name: str,
     server_params: dict[str, Any],
     root_dir: Path,
+    async_api: bool = False,
 ) -> list[str]
 ```
 
@@ -23,6 +24,7 @@ Parameters:
 | `server_name`   | `str`            | Name for the generated package directory. Also used to identify the server in the generated client code.                                              | *required* |
 | `server_params` | `dict[str, Any]` | MCP server connection parameters. For stdio servers, provide command, args, and optionally env. For HTTP servers, provide url and optionally headers. | *required* |
 | `root_dir`      | `Path`           | Parent directory where the package will be created. The generated package is written to root_dir/server_name/.                                        | *required* |
+| `async_api`     | `bool`           | When True, generate async run() functions that use await CLIENT.run(...) instead of sync CLIENT.run_sync(...).                                        | `False`    |
 
 Returns:
 

@@ -1056,7 +1056,7 @@
 
 <span class="k">await</span> <span class="n">generate_mcp_sources</span><span class="p">(</span><span class="s2">&quot;fetch_mcp&quot;</span><span class="p">,</span> <span class="n">server_params</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;mcptools&quot;</span><span class="p">))</span>
 </code></pre></div>
-<p>This generates a Python package under <code>mcptools/fetch_mcp/</code> with one module per tool, each containing a <code>Params</code> class and a <code>run()</code> function.</p>
+<p>This generates a Python package under <code>mcptools/fetch_mcp/</code> with one module per tool, each containing a <code>Params</code> class and a <code>run()</code> function. Pass <code>async_api=True</code> to generate async functions instead (see <a href="../apigen/#async-api-generation">Async API generation</a>).</p>
 <h2 id="start-a-tool-server">Start a tool server</h2>
 <p>A running <a href="../toolserver/">tool server</a> is required before calling the generated tool APIs.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">mcpygen</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolServer</span>
@@ -1073,6 +1073,10 @@
 
 <span class="n">result</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">Params</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">))</span>
 </code></pre></div>
+<p>For async usage, pass <code>async_api=True</code> when generating and <code>await</code> the result:</p>
+<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run</span><span class="p">(</span><span class="n">Params</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">&quot;https://example.com&quot;</span><span class="p">))</span>
+</code></pre></div>
+<p>See <a href="../apigen/#async-api-generation">Async API generation</a> for details.</p>
 <h2 id="custom-tool-server-port">Custom tool server port</h2>
 <p>By default, the tool server listens on port 8900. To use a different port:</p>
 <div class="highlight"><pre><span></span><code>mcpygen<span class="w"> </span>toolserver<span class="w"> </span>--port<span class="w"> </span><span class="m">9000</span>

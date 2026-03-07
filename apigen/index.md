@@ -109,6 +109,32 @@ for image in result.items:
 
 A running [tool server](https://gradion-ai.github.io/mcpygen/toolserver/index.md) is required for executing tool calls.
 
+## Async API generation
+
+By default, `generate_mcp_sources()` generates synchronous `run()` functions that use `ToolRunner.run_sync()`. Pass `async_api=True` to generate async functions instead:
+
+```
+await generate_mcp_sources(
+    "fetch_mcp", server_params, Path("mcptools"), async_api=True
+)
+```
+
+This produces `async def run()` functions that use `await ToolRunner.run()` ([source](https://github.com/gradion-ai/mcpygen/blob/main/docs/generated/mcptools/fetch_mcp/fetch_async.py)):
+
+```
+async def run(params: Params) -> str:
+    """Fetches a URL from the internet and extracts its contents as markdown."""
+    return await CLIENT.run(tool_name="fetch", tool_args=params.model_dump(exclude_none=True))
+```
+
+Use the async API with `await`:
+
+```
+from mcptools.fetch_mcp.fetch import Params, run
+
+result = await run(Params(url="https://example.com"))
+```
+
 ## Tool server connection
 
 The generated API connects to a tool server at `localhost:8900` by default. Override the host and port with environment variables:

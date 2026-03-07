@@ -967,7 +967,14 @@
     <span class="p">},</span>
 <span class="p">)</span>
 
+<span class="c1"># Synchronous (used by default generated API)</span>
 <span class="n">result</span> <span class="o">=</span> <span class="n">runner</span><span class="o">.</span><span class="n">run_sync</span><span class="p">(</span>
+    <span class="n">tool_name</span><span class="o">=</span><span class="s2">&quot;brave_web_search&quot;</span><span class="p">,</span>
+    <span class="n">tool_args</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="s2">&quot;MCP&quot;</span><span class="p">},</span>
+<span class="p">)</span>
+
+<span class="c1"># Async (used by generated API with async_api=True)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">runner</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
     <span class="n">tool_name</span><span class="o">=</span><span class="s2">&quot;brave_web_search&quot;</span><span class="p">,</span>
     <span class="n">tool_args</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="s2">&quot;MCP&quot;</span><span class="p">},</span>
 <span class="p">)</span>

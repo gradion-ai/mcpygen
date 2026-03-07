@@ -20,6 +20,7 @@ mcpygen apigen \
 | `--server-name`   | Name for the generated package directory           |
 | `--server-params` | MCP server connection parameters (JSON string)     |
 | `--root-dir`      | Parent directory where the package will be created |
+| `--async`         | Generate async API (`async def run`)               |
 
 ## `mcpygen toolserver`
 

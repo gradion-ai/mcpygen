@@ -25,7 +25,7 @@ server_params = {
 await generate_mcp_sources("fetch_mcp", server_params, Path("mcptools"))
 ```
 
-This generates a Python package under `mcptools/fetch_mcp/` with one module per tool, each containing a `Params` class and a `run()` function.
+This generates a Python package under `mcptools/fetch_mcp/` with one module per tool, each containing a `Params` class and a `run()` function. Pass `async_api=True` to generate async functions instead (see [Async API generation](https://gradion-ai.github.io/mcpygen/apigen/#async-api-generation)).
 
 ## Start a tool server
 
@@ -53,6 +53,14 @@ from mcptools.fetch_mcp.fetch import Params, run
 
 result = run(Params(url="https://example.com"))
 ```
+
+For async usage, pass `async_api=True` when generating and `await` the result:
+
+```
+result = await run(Params(url="https://example.com"))
+```
+
+See [Async API generation](https://gradion-ai.github.io/mcpygen/apigen/#async-api-generation) for details.
 
 ## Custom tool server port
 
