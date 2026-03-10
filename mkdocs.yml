@@ -41,7 +41,7 @@ plugins:
         optional approval workflows via WebSocket-based approval channels.
       full_output: llms-full.txt
       sections:
-        User Guide:
+        Documentation:
           - index.md: Project overview and capabilities
           - installation.md: Installation and setup instructions
           - quickstart.md: Getting started guide
