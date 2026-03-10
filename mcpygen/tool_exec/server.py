@@ -202,7 +202,7 @@ class ToolServer:
     async def _get_mcp_client(self, server_name: str, server_params: dict[str, Any]) -> MCPClient:
         async with self._mcp_client_lifecycle_lock:
             if server_name not in self._mcp_clients:
-                client = MCPClient(server_params)
+                client = MCPClient(server_params, connect_timeout=self.connect_timeout)
                 client = await self._mcp_client_exit_stack.enter_async_context(client)
                 self._mcp_clients[server_name] = client
             return self._mcp_clients[server_name]
