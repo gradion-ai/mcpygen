@@ -159,7 +159,10 @@ async def generate_mcp_sources(
             # Generate input model (Params)
             input_model_code = generate_input_model_code(tool.inputSchema)
 
-            if output_schema := tool.outputSchema:
+            output_schema = tool.outputSchema
+            output_model_code = None
+
+            if output_schema:
                 output_model_code = generate_output_model_code(output_schema)
                 output_model_code = strip_imports(output_model_code)
 
