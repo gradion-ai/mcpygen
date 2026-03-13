@@ -1,6 +1,8 @@
 import ast
+import warnings
 
 from mcpygen.apigen import (
+    _generate_model_code,
     generate_function_definition,
     generate_init_definition,
     sanitize_name,
@@ -198,3 +200,24 @@ class TestSanitizeName:
 
     def test_already_valid(self):
         assert sanitize_name("my_tool_123") == "my_tool_123"
+
+
+class TestGenerateModelCode:
+    def test_explicit_formatters_avoid_futurewarning(self) -> None:
+        schema = {
+            "type": "object",
+            "properties": {
+                "q": {"type": "string"},
+            },
+            "required": ["q"],
+        }
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            code = _generate_model_code(schema, "Params")
+
+        assert "class Params" in code
+        assert not any(
+            warning.category is FutureWarning and "default formatters" in str(warning.message).lower()
+            for warning in caught
+        )

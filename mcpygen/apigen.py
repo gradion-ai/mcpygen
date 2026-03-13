@@ -8,12 +8,14 @@ from typing import Any
 
 import aiofiles
 import aiofiles.os
-from datamodel_code_generator import DataModelType, PythonVersion
+from datamodel_code_generator import DataModelType, Formatter, PythonVersion
 from datamodel_code_generator.model import get_data_model_types
 from datamodel_code_generator.model.base import ALL_MODEL
 from datamodel_code_generator.parser.jsonschema import JsonSchemaParser
 
 from mcpygen.client import MCPClient
+
+_DEFAULT_FORMATTERS: list[Formatter] = [Formatter.BLACK, Formatter.ISORT]
 
 
 def generate_init_definition(server_name: str, server_params: dict[str, Any]) -> str:
@@ -76,6 +78,7 @@ def generate_output_model_code(schema: dict[str, Any]) -> str:
 
 
 def _generate_model_code(schema: dict[str, Any], class_name: str) -> str:
+    """Generate a Pydantic model from JSON schema."""
     data_model_types = get_data_model_types(
         data_model_type=DataModelType.PydanticV2BaseModel,
         target_python_version=PythonVersion.PY_311,
@@ -95,6 +98,7 @@ def _generate_model_code(schema: dict[str, Any], class_name: str) -> str:
         use_field_description=True,
         use_double_quotes=True,
         extra_template_data=extra_template_data,
+        formatters=_DEFAULT_FORMATTERS,
     )
     return parser.parse()
 
