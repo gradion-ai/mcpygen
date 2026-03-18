@@ -21,6 +21,12 @@ class ToolCall(BaseModel):
     tool_args: dict[str, Any]
 
 
+class ApprovalCall(BaseModel):
+    server_name: str
+    tool_name: str
+    tool_args: dict[str, Any]
+
+
 class ToolServer:
     """HTTP server that manages MCP servers and executes their tools with optional approval.
 
@@ -82,6 +88,7 @@ class ToolServer:
         self.app.get("/status")(self.status)
         self.app.put("/reset")(self.reset)
         self.app.post("/run", response_model=None)(self.run)
+        self.app.post("/approve", response_model=None)(self.approve)
 
         self._server: uvicorn.Server | None = None
         self._server_task: asyncio.Task | None = None
@@ -137,6 +144,27 @@ class ToolServer:
             return {"error": str(e)}
         else:
             return {"result": result}
+
+    async def approve(self, call: ApprovalCall) -> dict[str, Any]:
+        try:
+            if not await self._approval_channel.request(call.server_name, call.tool_name, call.tool_args):
+                return {
+                    "approved": False,
+                    "error": f"Approval request for {call.server_name}.{call.tool_name} rejected",
+                    "type": "rejected",
+                }
+            return {"approved": True}
+        except asyncio.TimeoutError:
+            return {
+                "approved": False,
+                "error": f"Approval request for {call.server_name}.{call.tool_name} expired",
+                "type": "timeout",
+            }
+        except Exception as e:
+            return {
+                "approved": False,
+                "error": f"Approval request for {call.server_name}.{call.tool_name} failed: {str(e)}",
+            }
 
     async def __aenter__(self):
         await self.start()
