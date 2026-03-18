@@ -21,7 +21,7 @@ class ToolCall(BaseModel):
     tool_args: dict[str, Any]
 
 
-class ApprovalCall(BaseModel):
+class ApprovalQuery(BaseModel):
     server_name: str
     tool_name: str
     tool_args: dict[str, Any]
@@ -119,52 +119,51 @@ class ToolServer:
         await self._close_mcp_clients()
         return {"reset": "success"}
 
-    async def run(self, call: ToolCall) -> dict[str, Any] | str | None:
-        try:
-            if not await self._approval_channel.request(call.server_name, call.tool_name, call.tool_args):
-                return {
-                    "error": f"Approval request for {call.server_name}.{call.tool_name} rejected",
-                    "type": "rejected",
-                }
-        except asyncio.TimeoutError:
-            return {"error": f"Approval request for {call.server_name}.{call.tool_name} expired", "type": "timeout"}
-        except Exception as e:
-            return {"error": f"Approval request for {call.server_name}.{call.tool_name} failed: {str(e)}"}
+    async def run(self, request: ToolCall) -> dict[str, Any] | str | None:
+        if error := await self._approve(request.server_name, request.tool_name, request.tool_args):
+            return error
 
         try:
             client = await self._get_mcp_client(
-                call.server_name,
-                call.server_params,
+                request.server_name,
+                request.server_params,
             )
             result = await client.run(
-                call.tool_name,
-                call.tool_args,
+                request.tool_name,
+                request.tool_args,
             )
         except Exception as e:
             return {"error": str(e)}
         else:
             return {"result": result}
 
-    async def approve(self, call: ApprovalCall) -> dict[str, Any]:
+    async def approve(self, request: ApprovalQuery) -> dict[str, Any]:
+        if error := await self._approve(request.server_name, request.tool_name, request.tool_args):
+            return {"approved": False, **error}
+        return {"approved": True}
+
+    async def _approve(
+        self,
+        server_name: str,
+        tool_name: str,
+        tool_args: dict[str, Any],
+    ) -> dict[str, Any] | None:
         try:
-            if not await self._approval_channel.request(call.server_name, call.tool_name, call.tool_args):
+            if not await self._approval_channel.request(server_name, tool_name, tool_args):
                 return {
-                    "approved": False,
-                    "error": f"Approval request for {call.server_name}.{call.tool_name} rejected",
+                    "error": f"Approval request for {server_name}.{tool_name} rejected",
                     "type": "rejected",
                 }
-            return {"approved": True}
         except asyncio.TimeoutError:
             return {
-                "approved": False,
-                "error": f"Approval request for {call.server_name}.{call.tool_name} expired",
+                "error": f"Approval request for {server_name}.{tool_name} expired",
                 "type": "timeout",
             }
         except Exception as e:
             return {
-                "approved": False,
-                "error": f"Approval request for {call.server_name}.{call.tool_name} failed: {str(e)}",
+                "error": f"Approval request for {server_name}.{tool_name} failed: {str(e)}",
             }
+        return None
 
     async def __aenter__(self):
         await self.start()
