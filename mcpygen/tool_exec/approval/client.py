@@ -4,8 +4,13 @@ import logging
 from functools import partial
 from typing import Any, Awaitable, Callable
 
+import aiohttp
+import requests
 import websockets
+from pydantic_core import to_jsonable_python
 from websockets import ClientConnection, ConnectionClosed
+
+from mcpygen.tool_exec.client import _make_error
 
 logger = logging.getLogger(__name__)
 
@@ -199,3 +204,85 @@ class ApprovalClient:
 
         except ConnectionClosed:
             pass
+
+
+class ApprovalRequestor:
+    """Client for requesting tool call approval from a [`ToolServer`][mcpygen.tool_exec.server.ToolServer].
+
+    `ApprovalRequestor` sends approval requests to the server's `/approve` endpoint
+    without executing the tool.
+
+    Example:
+        ```python
+        requestor = ApprovalRequestor(
+            server_name="fetch",
+            host="localhost",
+            port=8900,
+        )
+        await requestor.request("fetch", {"url": "https://example.com"})
+        ```
+    """
+
+    def __init__(
+        self,
+        server_name: str,
+        host: str = "localhost",
+        port: int = 8900,
+    ):
+        """
+        Args:
+            server_name: Name of the MCP server.
+            host: Hostname of the `ToolServer`.
+            port: Port number of the `ToolServer`.
+        """
+        self.server_name = server_name
+        self.host = host
+        self.port = port
+
+        self.url = f"http://{host}:{port}/approve"
+
+    async def request(self, tool_name: str, tool_args: dict[str, Any]) -> None:
+        """Request approval for a tool call.
+
+        Args:
+            tool_name: Name of the tool to approve.
+            tool_args: Arguments to pass to the tool.
+
+        Raises:
+            ApprovalRejectedError: If the tool call is rejected by the approval workflow.
+            ApprovalTimeoutError: If the approval request times out.
+            ToolRunnerError: If the approval request fails.
+        """
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url=self.url, json=self._create_data(tool_name, tool_args)) as response:
+                response.raise_for_status()
+                response_json = await response.json()
+
+                if "error" in response_json:
+                    raise _make_error(response_json)
+
+    def request_sync(self, tool_name: str, tool_args: dict[str, Any]) -> None:
+        """Synchronous version of [`request`][mcpygen.tool_exec.approval.client.ApprovalRequestor.request].
+
+        Args:
+            tool_name: Name of the tool to approve.
+            tool_args: Arguments to pass to the tool.
+
+        Raises:
+            ApprovalRejectedError: If the tool call is rejected by the approval workflow.
+            ApprovalTimeoutError: If the approval request times out.
+            ToolRunnerError: If the approval request fails.
+        """
+        response = requests.post(url=self.url, json=self._create_data(tool_name, tool_args))
+        response.raise_for_status()
+        response_json = response.json()
+
+        if "error" in response_json:
+            raise _make_error(response_json)
+
+    def _create_data(self, tool_name: str, tool_args: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "server_name": self.server_name,
+            "tool_name": tool_name,
+            "tool_args": to_jsonable_python(tool_args),
+        }
